@@ -193,6 +193,30 @@ class SubsampleActions(DataTransformFn):
         return data
 
 
+def so3_to_matrix( so3):
+    R1_partial = np.array(so3).reshape(2, 3)
+    # 计算第三行
+    R1_partial[0] /= np.linalg.norm(R1_partial[0])  # 归一化
+    R1_partial[1] /= np.linalg.norm(R1_partial[1])  # 归一化
+    R1_third_row = np.cross(R1_partial[0], R1_partial[1])
+    R1_third_row /= np.linalg.norm(R1_third_row)  # 归一化
+
+    # 构造完整的旋转矩阵
+    R1 = np.vstack((R1_partial, R1_third_row))
+    return R1
+def quat_to_matrix( quat):
+    # 计算旋转矩阵
+    quat = np.array(quat, dtype=np.float64)
+    quat = quat / np.linalg.norm(quat)  # 归一化，确保是单位四元数
+    x, y, z, w = quat
+    R = np.array([[1 - 2 * y ** 2 - 2 * z ** 2, 2 * x * y - 2 * z * w, 2 * x * z + 2 * y * w],
+                  [2 * x * y + 2 * z * w, 1 - 2 * x ** 2 - 2 * z ** 2, 2 * y * z - 2 * x * w],
+                  [2 * x * z - 2 * y * w, 2 * y * z + 2 * x * w, 1 - 2 * x ** 2 - 2 * y ** 2]])
+    return R
+def matrix_to_so3( R1):
+    R1 = np.array(R1).reshape(3, 3)
+    R1_partial = R1[:2]
+    return R1_partial.flatten()
 @dataclasses.dataclass(frozen=True)
 class DeltaActions(DataTransformFn):
     """Repacks absolute actions into delta action space."""
@@ -237,6 +261,146 @@ class AbsoluteActions(DataTransformFn):
         return data
 
 
+@dataclasses.dataclass(frozen=True)
+class DeltaActions_so3(DataTransformFn):
+    """Repacks absolute actions into delta action space."""
+
+    # Boolean mask for the action dimensions to be repacked into delta action space. Length
+    # can be smaller than the actual number of dimensions. If None, this transform is a no-op.
+    # See `make_bool_mask` for more details.
+    mask: Sequence[int] | None
+
+    def xyz_so3_p1_to_p3(self,P1,P3 = None):
+
+        R1 = so3_to_matrix(P1[3:]).reshape(3, 3)
+        T_1 = np.array(P1[:3])
+        if P3 is not None:
+            P3 = np.squeeze(P3)
+
+        return np.concatenate([T_1 , matrix_to_so3(R1)])
+
+    def compute_change_xyz_so3(self,P1, P2,P3 =None,P4=None):
+
+        R1 = so3_to_matrix(P1[3:]).reshape(3, 3)
+        R2 = so3_to_matrix(P2[3:]).reshape(3, 3)
+
+        T_1 = np.array(P1[:3])
+        T_2 = np.array(P2[:3])
+
+        # 计算旋转矩
+        R_d = R1.T @ R2
+        T_d = R1.T @ (T_2 - T_1)
+        if P4 is not None:
+            R_d = P4[:3, :3].T @ R_d @ P4[:3, :3]
+            T_d = P4[:3, :3].T @ T_d
+
+
+        return np.concatenate([T_d , matrix_to_so3(R_d)])
+
+    def compute_change_xyz_so3_list(self, P1, P2, P3=None,P4=None):
+        so3_delta_list = []
+        for P2_now in P2:
+            so3_delta_list += [self.compute_change_xyz_so3(P1, P2_now,P3,P4)]
+        so3_delta = np.array(so3_delta_list)
+        return so3_delta
+
+    def __call__(self, data: DataDict) -> DataDict:
+        if "actions" not in data or self.mask is None:
+            if self.state_trans_head:
+                state = data["state"]
+                last_idx = 0
+                head_poses = data["head_so3_poses"]
+                for idx,num in enumerate(self.mask):
+                    cur_idx = last_idx + abs(num)
+                    if num == 9:
+                        state[...,last_idx:cur_idx] = self.xyz_so3_p1_to_p3(state[...,last_idx:cur_idx],head_poses)
+                    last_idx = cur_idx
+                data["state"] = state
+            return data
+
+        state, actions = data["state"], data["actions"]
+        last_idx = 0
+
+        num_9 = 0
+        for idx,num in enumerate(self.mask):
+            cur_idx = last_idx + abs(num)
+            if num == 9:
+                num_9 += 1
+                actions[...,last_idx:cur_idx] = self.compute_change_xyz_so3_list(state[...,last_idx:cur_idx], actions[...,last_idx:cur_idx])
+
+            last_idx = cur_idx
+        data["actions"] = actions
+        data["state"] = state
+
+        return data
+
+
+@dataclasses.dataclass(frozen=True)
+class AbsoluteActions_so3(DataTransformFn):
+    """Repacks delta actions into absolute action space."""
+
+    # Boolean mask for the action dimensions to be repacked into absolute action space. Length
+    # can be smaller than the actual number of dimensions. If None, this transform is a no-op.
+    # See `make_bool_mask` for more details.
+    mask: Sequence[int] | None
+
+    def xyz_so3_p1_to_p3_T(self,P1,P3 = None):
+
+        R1 = so3_to_matrix(P1[3:]).reshape(3, 3)
+        T_1 = np.array(P1[:3])
+        if P3 is not None:
+            P3 = np.squeeze(P3)
+
+        return np.concatenate([T_1 , matrix_to_so3(R1)])
+    def compute_add_xyz_so3(self, P1, Pd,P3=None,P4=None):
+
+        R1 = so3_to_matrix(P1[3:]).reshape(3, 3)
+        R_d = so3_to_matrix(Pd[3:]).reshape(3, 3)
+
+        T_1 = np.array(P1[:3])
+        T_d = np.array(Pd[:3])
+
+        # 计算旋转矩
+        if P4 is not None:
+            R_d =  R_d @ P4[:3, :3].T
+            R1 = R1 @ P4[:3, :3]
+
+        R2 = R1 @ R_d
+        T_2 = R1 @T_d + T_1
+
+
+        return np.concatenate([T_2, matrix_to_so3(R2)])
+
+    def compute_add_xyz_so3_list(self, P1, Pd,P3=None,P4=None):
+        P2_list = []
+        for Pd_now in Pd:
+            P2_list += [self.compute_add_xyz_so3(P1, Pd_now,P3,P4)]
+        P2 = np.array(P2_list)
+        return P2
+
+    def __call__(self, data: DataDict) -> DataDict:
+        if "actions" not in data or self.mask is None:
+            return data
+
+        state, actions = data["state"], data["actions"]
+
+
+        last_idx = 0
+
+        num_9 = 0
+        for idx,num in enumerate(self.mask):
+            cur_idx = last_idx + abs(num)
+            if num == 9:
+                num_9 += 1
+
+                if self.state_trans_head:
+                    state[...,last_idx:cur_idx] = self.xyz_so3_p1_to_p3_T(state[...,last_idx:cur_idx])
+                actions[...,last_idx:cur_idx] = self.compute_add_xyz_so3_list(state[...,last_idx:cur_idx], actions[...,last_idx:cur_idx])
+
+            last_idx = cur_idx
+        data["actions"] = actions
+
+        return data
 @dataclasses.dataclass(frozen=True)
 class TokenizePrompt(DataTransformFn):
     tokenizer: _tokenizer.PaligemmaTokenizer
@@ -310,6 +474,25 @@ class PromptFromLeRobotTask(DataTransformFn):
         return {**data, "prompt": prompt}
 
 
+@dataclasses.dataclass(frozen=True)
+class PromptFromMutiLeRobotTask(PromptFromLeRobotTask):
+    """Extracts a prompt from the current LeRobot dataset task."""
+
+    # Contains the LeRobot dataset tasks of different dataset.
+    tasks: list
+
+    def __call__(self, data: DataDict) -> DataDict:
+        if "task_index" not in data:
+            raise ValueError('Cannot extract prompt without "task_index"')
+        dataset_index = data['dataset_index']
+        task_index = int(data["task_index"])
+        if (prompt := self.tasks[dataset_index].get(task_index)) is None:
+            raise ValueError(f"{task_index=} not found in task mapping: {self.tasks[dataset_index]}, {data}")
+        # for prompt augmentation
+        if type(prompt) == list:
+            prompt = str(np.random.choice(prompt))
+        return {**data, "prompt": prompt}
+        
 def flatten_dict(tree: at.PyTree) -> dict:
     """Flatten a nested dictionary. Uses '/' as the separator."""
     return traverse_util.flatten_dict(tree, sep="/")

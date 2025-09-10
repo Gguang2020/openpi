@@ -136,16 +136,38 @@ def create_torch_dataset(
     if repo_id == "fake":
         return FakeDataset(model_config, num_samples=1024)
 
-    dataset_meta = lerobot_dataset.LeRobotDatasetMetadata(repo_id)
-    dataset = lerobot_dataset.LeRobotDataset(
-        data_config.repo_id,
+
+    episodes_dict = {}
+    tasks_list = []
+    for idx, folder in enumerate(data_config.repo_id_list):
+        sub_dataset_root = os.path.join(data_config.dataset_root, folder)
+        print('[data set {}]: '.format(idx), sub_dataset_root)
+        # 需要指定数据集的根目录
+        dataset_meta = lerobot_dataset.LeRobotDatasetMetadata(
+            repo_id,
+            root=sub_dataset_root,
+            local_files_only=data_config.local_files_only
+        )
+        tasks_list.append(dataset_meta.tasks)
+
+        epi_num = dataset_meta.total_episodes
+        print('[data set {}]: total data num: {}'.format(idx, epi_num))
+
+
+
+    # dataset_meta = lerobot_dataset.LeRobotDatasetMetadata(repo_id,root=data_config.dataset_root)
+    dataset = lerobot_dataset.MultiLeRobotDataset(
+        data_config.repo_id_list,
+        root=data_config.dataset_root,
         delta_timestamps={
             key: [t / dataset_meta.fps for t in range(action_horizon)] for key in data_config.action_sequence_keys
         },
+        local_files_only=data_config.local_files_only
+
     )
 
     if data_config.prompt_from_task:
-        dataset = TransformedDataset(dataset, [_transforms.PromptFromLeRobotTask(dataset_meta.tasks)])
+        dataset = TransformedDataset(dataset, [_transforms.PromptFromMutiLeRobotTask(tasks_list)])
 
     return dataset
 
