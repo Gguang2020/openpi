@@ -17,6 +17,7 @@ import openpi.models.model as _model
 import openpi.models.pi0 as pi0
 import openpi.models.pi0_fast as pi0_fast
 import openpi.models.tokenizer as _tokenizer
+import openpi.policies.astribot_policy as astribot_policy
 import openpi.policies.aloha_policy as aloha_policy
 import openpi.policies.droid_policy as droid_policy
 import openpi.policies.libero_policy as libero_policy
@@ -64,8 +65,14 @@ class AssetsConfig:
 class DataConfig:
     # LeRobot repo id. If None, fake data will be created.
     repo_id: str | None = None
+    repo_id_list: list | None = None
+    dataset_root: str | None = None
+
+    local_files_only: bool = False
     # Directory within the assets directory containing the data assets.
     asset_id: str | None = None
+
+    asset_dir: str | None = None
     # Contains precomputed normalization stats. If None, normalization will not be performed.
     norm_stats: dict[str, _transforms.NormStats] | None = None
 
@@ -152,6 +159,10 @@ class ModelTransformFactory(GroupFactory):
 class DataConfigFactory(abc.ABC):
     # The LeRobot repo id.
     repo_id: str = tyro.MISSING
+    repo_id_list: list = dataclasses.field(default_factory=list)
+
+    dataset_root: str | None = None
+    local_files_only: bool = False
     # Determines how the assets will be loaded.
     assets: AssetsConfig = dataclasses.field(default_factory=AssetsConfig)
     # Base config that will be updated by the factory.
@@ -167,7 +178,11 @@ class DataConfigFactory(abc.ABC):
         return dataclasses.replace(
             self.base_config or DataConfig(),
             repo_id=repo_id,
+            repo_id_list=self.repo_id_list or None,
+            dataset_root = self.dataset_root,
+            local_files_only = self.local_files_only,
             asset_id=asset_id,
+            asset_dir=self.assets.assets_dir,
             norm_stats=self._load_norm_stats(epath.Path(self.assets.assets_dir or assets_dirs), asset_id),
         )
 
@@ -190,7 +205,7 @@ class FakeDataConfig(DataConfigFactory):
 
     @override
     def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
-        return DataConfig(repo_id=self.repo_id)
+        return DataConfig(repo_id=self.repo_id,repo_id_list=self.repo_id_list)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -207,6 +222,66 @@ class SimpleDataConfig(DataConfigFactory):
             data_transforms=self.data_transforms(model_config),
             model_transforms=self.model_transforms(model_config),
             use_quantile_norm=model_config.model_type == ModelType.PI0_FAST,
+        )
+
+
+@dataclasses.dataclass(frozen=True)
+class LeRobotAstribotDataConfig(DataConfigFactory):
+    # If true, will convert joint dimensions to deltas with respect to the current state before passing to the model.
+    # Gripper dimensions will remain in absolute values.
+    use_delta_so3_actions: bool = True
+    # If provided, will be injected into the input data if the "prompt" key is not present.
+    default_prompt: str | None = None
+    # If true, this will convert the joint and gripper values from the standard Aloha space to
+    # the space used by the pi internal runtime which was used to train the base model. People who
+    # use standard Aloha data should set this to true.
+    adapt_to_pi: bool = False
+    repo_id: str = "lerobot_astribot"
+    repo_id_list: list = dataclasses.field(default_factory=list)
+    dataset_root: str | None = None
+    local_files_only: bool = False
+
+    # Repack transforms.
+    repack_transforms: tyro.conf.Suppress[_transforms.Group] = dataclasses.field(
+        default=_transforms.Group(
+            inputs=[
+                _transforms.RepackTransform(
+                    {
+                        "images": { "cam_high": "images_dict.head.rgb",
+                                    "cam_left_wrist": "images_dict.left.rgb",
+                                    "cam_right_wrist": "images_dict.right.rgb",
+                                    },
+                        "state": "cartesian_so3_dict.cartesian_pose_state",
+                        "actions": "cartesian_so3_dict.cartesian_pose_command",
+                    }
+                )
+            ]
+        )
+    )
+    # Action keys that will be used to read the action sequence from the dataset.
+    action_sequence_keys: Sequence[str] = ("cartesian_so3_dict.cartesian_pose_command",)
+
+    @override
+    def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
+        data_transforms = _transforms.Group(
+            inputs=[astribot_policy.AstribotInputs(action_dim=model_config.action_dim, adapt_to_pi=self.adapt_to_pi)],
+            outputs=[astribot_policy.AstribotOutputs(adapt_to_pi=self.adapt_to_pi)],
+        )
+        if self.use_delta_so3_actions:
+            delta_action_mask = [9, 9, -1, 9, -1, 2]
+            data_transforms = data_transforms.push(
+                inputs=[_transforms.DeltaActions_so3(delta_action_mask)],
+                outputs=[_transforms.AbsoluteActions_so3(delta_action_mask)],
+            )
+
+        model_transforms = ModelTransformFactory(default_prompt=self.default_prompt)(model_config)
+
+        return dataclasses.replace(
+            self.create_base_config(assets_dirs),
+            repack_transforms=self.repack_transforms,
+            data_transforms=data_transforms,
+            model_transforms=model_transforms,
+            action_sequence_keys=self.action_sequence_keys,
         )
 
 
@@ -491,6 +566,23 @@ _CONFIGS = [
     #
     # Inference Aloha configs.
     #
+    TrainConfig(
+        name="pi0_astribot_test",
+        model=pi0.Pi0Config(),
+        data=LeRobotAstribotDataConfig(
+            assets=AssetsConfig(assets_dir="/media/xc/WD_BLACK/wrc" ,
+                                asset_id="test/lerobot_astribot"),
+            default_prompt="pick the object and place it in the shopping cart",
+
+            repo_id_list=["test/lerobot_astribot"],
+            dataset_root="/media/xc/WD_BLACK/wrc",
+            local_files_only=True,
+
+        ),
+        policy_metadata={"reset_pose": [0, -1.5, 1.5, 0, 0, 0]},
+        batch_size=1,
+        num_workers=1,
+    ),
     TrainConfig(
         name="pi0_aloha",
         model=pi0.Pi0Config(),
