@@ -193,3 +193,13 @@ We will collect common issues and their solutions here. If you encounter an issu
 | Import errors when running examples       | Make sure you've installed all dependencies with `uv sync` and activated the virtual environment. Some examples may have additional requirements listed in their READMEs.                    |
 | Action dimensions mismatch                | Verify your data processing transforms match the expected input/output dimensions of your robot. Check the action space definitions in your policy classes.                                  |
 
+
+
+
+
+# astribot 版本
+## 1. hdf5转lerobot
+uv run examples/astribot/s1_hd5_2_lerobot.py --raw-path "/kpfs-regular/gg/gg/data/s1_pnp/WRC/gripper_pnp/to_Cart/731_left_1toy/so3_data_30hz" --image-compressed True --use_label False
+
+## 2. 计算norm_state
+uv run scripts/compute_norm_stats.py --config-name pi0_astribot_test

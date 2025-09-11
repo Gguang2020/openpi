@@ -269,13 +269,47 @@ class CustomLeRobotDataset(LeRobotDataset):
                 if file_suffix is not None:
                     break
             if file_suffix == ".png":
-                encode_video_frames_from_img(img_dir, video_path, self.fps, vcodec="h264_nvenc", overwrite=True, image_format=".png")
+                encode_video_frames_from_img(img_dir, video_path, self.fps, vcodec="h264", overwrite=True, image_format=".png")
             elif file_suffix == ".jpg":
-                encode_video_frames_from_img(img_dir, video_path, self.fps, vcodec="h264_nvenc", overwrite=True, image_format=".jpg")
+                encode_video_frames_from_img(img_dir, video_path, self.fps, vcodec="h264", overwrite=True, image_format=".jpg")
             else:
                 raise ValueError(f"No image files found in {img_dir}. Cannot encode video.")
 
         return video_paths
+
+
+    def consolidate(self, run_compute_stats: bool = True, keep_image_files: bool = False) -> None:
+        self.hf_dataset = self.load_hf_dataset()
+        self.episode_data_index = get_episode_data_index(self.meta.episodes, self.episodes)
+        check_timestamps_sync(self.hf_dataset, self.episode_data_index, self.fps, self.tolerance_s)
+
+        if len(self.meta.video_keys) > 0:
+            self.encode_videos()
+            self.meta.write_video_info()
+
+        if not keep_image_files:
+            img_dir = self.root / "images"
+            if img_dir.is_dir():
+                shutil.rmtree(self.root / "images")
+
+        video_files = list(self.root.rglob("*.mp4"))
+        assert len(video_files) == self.num_episodes * len(self.meta.video_keys)
+
+        parquet_files = list(self.root.rglob("*.parquet"))
+        assert len(parquet_files) == self.num_episodes
+
+        if run_compute_stats:
+            self.stop_image_writer()
+            # TODO(aliberts): refactor stats in save_episodes
+            self.meta.stats = compute_stats(self, num_workers=0,max_num_samples=1000)
+            serialized_stats = serialize_dict(self.meta.stats)
+            write_json(serialized_stats, self.root / STATS_PATH)
+            self.consolidated = True
+        else:
+            logging.warning(
+                "Skipping computation of the dataset statistics, dataset is not fully consolidated."
+            )
+            
 class S1Transformer:
 
     joints_names = ["astribot_chassis", "astribot_torso", "astribot_arm_left", "astribot_gripper_left", "astribot_arm_right", "astribot_gripper_right", "astribot_head"]

@@ -492,7 +492,7 @@ class PromptFromMutiLeRobotTask(PromptFromLeRobotTask):
         if type(prompt) == list:
             prompt = str(np.random.choice(prompt))
         return {**data, "prompt": prompt}
-
+        
 def flatten_dict(tree: at.PyTree) -> dict:
     """Flatten a nested dictionary. Uses '/' as the separator."""
     return traverse_util.flatten_dict(tree, sep="/")
