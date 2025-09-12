@@ -520,7 +520,7 @@ class TrainConfig:
     # How often (in steps) to save checkpoints.
     save_interval: int = 1000
     # If set, any existing checkpoints matching step % keep_period == 0 will not be deleted.
-    keep_period: int | None = 5000
+    keep_period: int | None = 10000
 
     # If true, will overwrite the checkpoint directory if it already exists.
     overwrite: bool = False
@@ -597,7 +597,7 @@ _CONFIGS = [
         ),
         # policy_metadata={"reset_pose": [0, -1.5, 1.5, 0, 0, 0]},
         batch_size=32,
-        num_workers=32,
+        num_workers=40,
         num_train_steps=160_000,
         weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi0_base/params"),
 
