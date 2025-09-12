@@ -35,10 +35,12 @@ def test_download_gs_dir():
 
 
 def test_download_gs():
-    remote_path = "gs://openpi-assets/testdata/random/random_512kb.bin"
+    # remote_path = "gs://openpi-assets/testdata/random/random_512kb.bin"
+    remote_path = "gs://openpi-assets/checkpoints/pi0_base"
 
     local_path = download.maybe_download(remote_path)
     assert local_path.exists()
+    print(local_path)
 
     new_local_path = download.maybe_download(remote_path)
     assert new_local_path == local_path

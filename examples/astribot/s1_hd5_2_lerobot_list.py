@@ -10,6 +10,7 @@ If you wish to submit the dataset to the hub, you can do so by setting up the hf
 """
 
 import argparse
+import copy
 import logging
 import os
 from pathlib import Path
@@ -19,12 +20,18 @@ import numpy as np
 import json
 import cv2
 import h5py
+from lerobot.common.datasets.lerobot_dataset import LEROBOT_HOME
 from lerobot.common.datasets.lerobot_dataset import LeRobotDataset
 from lerobot.common.datasets.compute_stats import aggregate_stats, compute_stats
 
-
+from lerobot.common.datasets.video_utils import (
+    VideoFrame,
+    decode_video_frames_torchvision,
+    encode_video_frames,
+    get_video_info,
+)
 from collections import OrderedDict
-import subprocess
+import s1_hd5_2_lerobot
 from lerobot.common.datasets.utils import (
     DEFAULT_FEATURES,
     DEFAULT_IMAGE_PATH,
@@ -54,6 +61,12 @@ from lerobot.common.datasets.utils import (
     write_parquet,
 )
 import torch
+import s1_hd5_2_lerobot
+import pandas as pd
+import pyarrow as pa
+import sys
+sys.path.append('/home/xc/work/astribot_il/dataset/tools/gripper_render/')
+# from gripper_render_sdk import RenderGripper
 
 
 def encode_video_frames_from_img(

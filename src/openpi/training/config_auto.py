@@ -562,9 +562,7 @@ class TrainConfig:
 
 
 # Use `get_config` if you need to get a config by name in your code.
-import scripts.configs.wrc_pnp as astribot_wrc_pnp
 _CONFIGS = [
-    astribot_wrc_pnp.CONFIG,
     TrainConfig(
         name="pi0_astribot_test",
         model=pi0.Pi0Config(),
@@ -881,11 +879,50 @@ def cli() -> TrainConfig:
     return tyro.extras.overridable_config_cli({k: (k, v) for k, v in _CONFIGS_DICT.items()})
 
 
+# def get_config(config_name: str) -> TrainConfig:
+#     """Get a config by name."""
+#     if config_name not in _CONFIGS_DICT:
+#         closest = difflib.get_close_matches(config_name, _CONFIGS_DICT.keys(), n=1, cutoff=0.0)
+#         closest_str = f" Did you mean '{closest[0]}'? " if closest else ""
+#         raise ValueError(f"Config '{config_name}' not found.{closest_str}")
+#
+#     return _CONFIGS_DICT[config_name]
+
+
+
 def get_config(config_name: str) -> TrainConfig:
     """Get a config by name."""
-    if config_name not in _CONFIGS_DICT:
-        closest = difflib.get_close_matches(config_name, _CONFIGS_DICT.keys(), n=1, cutoff=0.0)
-        closest_str = f" Did you mean '{closest[0]}'? " if closest else ""
-        raise ValueError(f"Config '{config_name}' not found.{closest_str}")
+    import json
 
-    return _CONFIGS_DICT[config_name]
+    from pathlib import Path
+
+    config_path = Path(__file__).parent.parent.parent.parent / "examples"/"astribot"/"configs" / (config_name +".json")
+    with open(config_path, "r") as f:
+        astribot_train_config = json.load(f)
+
+    TrainConfig(
+        name=config_name+"_list",
+        model=pi0.Pi0Config(),
+        data=LeRobotAstribotDataConfig(
+
+            assets=AssetsConfig(assets_dir=astribot_train_config["DatasetRootPath"] ,
+                                asset_id=astribot_train_config["base_dir"]),
+            default_prompt="pick the object and place it in the shopping cart",
+            dataset_root=astribot_train_config["DatasetRootPath"] + astribot_train_config["base_dir"],
+            repo_id_list=astribot_train_config["repo_id_list"],
+            local_files_only=True,
+
+        ),
+        # policy_metadata={"reset_pose": [0, -1.5, 1.5, 0, 0, 0]},
+
+        num_workers=astribot_train_config["num_workers"],
+        num_train_steps=astribot_train_config["num_train_steps"],
+        batch_size=astribot_train_config["batch_size"],
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi0_base/params"),
+
+        lr_schedule=_optimizer.CosineDecaySchedule(
+            warmup_steps=1_000, peak_lr=2.5e-5, decay_steps=60_000, decay_lr=0.5e-6
+        ),
+    ),
+    return test_config[0]
+
