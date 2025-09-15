@@ -561,10 +561,7 @@ class TrainConfig:
             raise ValueError("Cannot resume and overwrite at the same time.")
 
 
-# Use `get_config` if you need to get a config by name in your code.
-import scripts.configs.wrc_pnp as astribot_wrc_pnp
 _CONFIGS = [
-    astribot_wrc_pnp.CONFIG,
     TrainConfig(
         name="pi0_astribot_test",
         model=pi0.Pi0Config(),

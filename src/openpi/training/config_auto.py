@@ -900,7 +900,7 @@ def get_config(config_name: str) -> TrainConfig:
     with open(config_path, "r") as f:
         astribot_train_config = json.load(f)
 
-    TrainConfig(
+    test_config = TrainConfig(
         name=config_name+"_list",
         model=pi0.Pi0Config(),
         data=LeRobotAstribotDataConfig(

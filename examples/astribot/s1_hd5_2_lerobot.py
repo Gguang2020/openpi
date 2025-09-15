@@ -1101,7 +1101,7 @@ def main():
 
     parser.add_argument("--nproc", type=int, default=10, help="Number of image writer processes.")
     parser.add_argument("--nthreads", type=int, default=5, help="Number of image writer threads.")
-    parser.add_argument("--use_label", type=str2bool, default=True, help="use label in the dataset")
+    parser.add_argument("--use_label", type=str2bool, default=False, help="use label in the dataset")
 
 
     args = parser.parse_args()
