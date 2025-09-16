@@ -1,6 +1,6 @@
 {
-  "DatasetRootPath": "/media/xc/guang4T/astribot_dataset/s1_pnp",
-  "base_dir": "/WRC/gripper_pnp/to_Cart",
+  "DatasetRootPath": "/media/xc/guang4T/astribot_dataset/s1_pnp/",
+  "base_dir": "WRC/gripper_pnp/to_Cart",
   "repo_id_list": [
                 "804_gg_right_adj/lerobot_so3_data_30hz",
                 "807_wrc_night/lerobot_so3_data_30hz"

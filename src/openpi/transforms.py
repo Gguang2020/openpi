@@ -392,9 +392,6 @@ class AbsoluteActions_so3(DataTransformFn):
             cur_idx = last_idx + abs(num)
             if num == 9:
                 num_9 += 1
-
-                if self.state_trans_head:
-                    state[...,last_idx:cur_idx] = self.xyz_so3_p1_to_p3_T(state[...,last_idx:cur_idx])
                 actions[...,last_idx:cur_idx] = self.compute_add_xyz_so3_list(state[...,last_idx:cur_idx], actions[...,last_idx:cur_idx])
 
             last_idx = cur_idx

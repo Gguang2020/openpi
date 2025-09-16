@@ -876,8 +876,12 @@ _CONFIGS_DICT = {config.name: config for config in _CONFIGS}
 
 
 def cli() -> TrainConfig:
-    return tyro.extras.overridable_config_cli({k: (k, v) for k, v in _CONFIGS_DICT.items()})
+    import sys
+    config_name = sys.argv[1]
+    _CONFIGS_DICT[config_name] = get_config(config_name)
 
+    return tyro.extras.overridable_config_cli({k: (k, v) for k, v in _CONFIGS_DICT.items()})
+    # return tyro.extras.overridable_config_cli(comfig_t)
 
 # def get_config(config_name: str) -> TrainConfig:
 #     """Get a config by name."""
