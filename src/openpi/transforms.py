@@ -306,16 +306,16 @@ class DeltaActions_so3(DataTransformFn):
 
     def __call__(self, data: DataDict) -> DataDict:
         if "actions" not in data or self.mask is None:
-            if self.state_trans_head:
-                state = data["state"]
-                last_idx = 0
-                head_poses = data["head_so3_poses"]
-                for idx,num in enumerate(self.mask):
-                    cur_idx = last_idx + abs(num)
-                    if num == 9:
-                        state[...,last_idx:cur_idx] = self.xyz_so3_p1_to_p3(state[...,last_idx:cur_idx],head_poses)
-                    last_idx = cur_idx
-                data["state"] = state
+            # if self.state_trans_head:
+            #     state = data["state"]
+            #     last_idx = 0
+            #     head_poses = data["head_so3_poses"]
+            #     for idx,num in enumerate(self.mask):
+            #         cur_idx = last_idx + abs(num)
+            #         if num == 9:
+            #             state[...,last_idx:cur_idx] = self.xyz_so3_p1_to_p3(state[...,last_idx:cur_idx],head_poses)
+            #         last_idx = cur_idx
+            #     data["state"] = state
             return data
 
         state, actions = data["state"], data["actions"]

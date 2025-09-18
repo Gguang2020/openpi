@@ -376,7 +376,7 @@ def main(args: Args) -> None:
             image_hwc_uint8 = (image_hwc * 255).astype(np.uint8)
 
             # 显示图像
-            cv2.imwrite("show_result_head_image.png", image_hwc_uint8)  # 保存图片
+            cv2.imwrite("./result/" +"show_result_head_image.png", image_hwc_uint8)  # 保存图片
 
             image_dict[name] = image
 
@@ -499,7 +499,7 @@ def main(args: Args) -> None:
     plt.tight_layout()
 
     # 保存 action 和 real_action 的图
-    plt.savefig(args.config + '_'  + str(args.data_episode_id)+'_action_real_comparison.png')
+    plt.savefig("./result/" + args.config + '_'  + str(args.data_episode_id)+'_action_real_comparison.png')
     plt.close()  # 关闭图表，避免内存溢出
 
     # 绘制单独的 action_diff 图
@@ -530,7 +530,7 @@ def main(args: Args) -> None:
     plt.tight_layout()
 
     # 保存差异图
-    plt.savefig(args.config + '_'+ str(args.data_episode_id)+'_action_diff.png')
+    plt.savefig("./result/" +args.config + '_'+ str(args.data_episode_id)+'_action_diff.png')
     plt.close()  # 关闭图表，避免内存溢出
 
     print("Action and Difference plots saved.")
