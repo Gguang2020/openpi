@@ -106,8 +106,7 @@ def process_one(idx: int, repo_id: str, config: _config.TrainConfig, list_len: i
         config.data.assets.assets_dir
         + "/"
         + config.data.assets.asset_id
-        + "/"
-        + config.name
+        + "/so3_self_delta/"
     )
     print(f"[{idx+1}/{list_len}] Writing stats to: {output_path}")
     normalize.save(output_path, norm_stats)
@@ -180,7 +179,7 @@ def main(config_name: str, max_frames: int | None = None, workers: int = 4):
             )
 
             assets_dir = Path(config_temp.data.assets.assets_dir)
-            norm_stats_path = assets_dir / config_temp.data.assets.asset_id / config_temp.name / "norm_stats.json"
+            norm_stats_path = assets_dir / config_temp.data.assets.asset_id / "so3_self_delta" / "norm_stats.json"
             norm_stats_path_list.append(norm_stats_path)
             episodes_num_dir = assets_dir / config_temp.data.assets.asset_id / "meta/info.json"
             if episodes_num_dir.exists():
