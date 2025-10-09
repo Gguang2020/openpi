@@ -34,7 +34,7 @@ export WANDB_MODE=disabled
 export PYTHONUNBUFFERED=1   # Python 输出不缓冲
 
 # 计算 norm stats
-stdbuf -oL -eL uv run scripts/compute_norm_stats_list.py --config-name $task_name 2>&1 | tee -a "$LOG_FILE"
+stdbuf -oL -eL uv run scripts/compute_norm_stats_from_tasks.py --config-name $task_name 2>&1 | tee -a "$LOG_FILE"
 
 # 启动训练
 stdbuf -oL -eL uv run scripts/train_auto.py $task_name --exp-name=$exp_name --resume 2>&1 | tee -a "$LOG_FILE"

@@ -1,3 +1,133 @@
+# 🧩 Fork Version Notice (Astribot Adaptation)
+
+> This repository is a fork of the [openpi](https://github.com/Physical-Intelligence/openpi) project by the Physical Intelligence team.  
+> Original Author: @Physical-Intelligence  
+> 
+> This fork is maintained by the Astribot team and primarily adapted for **Astribot robot platform experiments and workflows**.
+
+
+---
+
+
+## ✨ Changelog / Modifications
+
+- **Restructured Astribot Usage Guide**:  
+  - Clearly separated **manual dataset preparation** from the **automated pipeline**.
+  - Highlighted that users can **either** run the automated `train.sh` **OR** execute each step manually.
+- **Step-by-step Instructions**:  
+  - Added explicit commands for **installing dependencies**, **HDF5 to LeRobot conversion**, **normalization statistics computation**, **training**, and **testing**.
+  - Clearly indicated single-file vs batch conversion for Astribot datasets.
+- **Testing Instructions Updated**:  
+  - Added checkpoint path placeholder (`policy.dir`) for clarity.
+  - Specified that inference results are saved in `eval/result`.
+---
+## 🚀 Astribot Usage Guide
+
+This guide explains how to use or fine-tune **OpenPI** models on the **Astribot** platform.  
+
+The workflow consists of three main stages:  
+
+1. **Prepare HDF5 datasets** (manual step)  
+2. **Run model pipeline**: you can **either** run the automated script **OR** execute each step manually  
+   - **Option A (Recommended):** Run automated pipeline (`train.sh`) to compute normalization statistics and train the model  
+   - **Option B (Optional):** Execute each step manually if needed  
+
+---
+
+### 1️⃣ Install Dependencies
+
+Set up the environment and sync required packages:
+
+```bash
+GIT_LFS_SKIP_SMUDGE=1 uv sync
+```
+
+
+### 2️⃣ Convert HDF5 Data to LeRobot Format
+🔹 Single File Conversion
+
+Convert a single .hdf5 dataset into the LeRobot format:
+```bash
+uv run examples/astribot/s1_hd5_2_lerobot.py \
+  --raw-path "/data/astribot/demo_project/scene_01/so3_data_30hz"
+  ```
+🔹 Batch Conversion (from JSON Configuration)
+
+Read multiple dataset paths from a JSON configuration file and convert them in batch:
+```bash
+cd examples/astribot
+uv run s1_hd5_2_lerobot_batch_from_json.py --json_dir "configs/wrc_pnp_test.json"
+```
+
+### 3️⃣ Run Model Pipeline
+
+You have two options (mutually exclusive, OR):
+
+🔹 Option A (Recommended): Automated Pipeline
+
+ 1. Add Configuration File
+
+    Add your YAML/JSON configuration file under `examples/astribot/configs/`.  
+
+    - Naming convention: `<task_name>.json`, e.g., `wrc_pnp_test.json`  
+    - Refer to the example configuration for structure and parameters: `examples/s1/configs/wrc_pnp_test.json`
+
+
+ 2. Run Automated Pipeline
+
+    Run the entire workflow (compute normalization statistics and train the model) using the script:
+    
+    ```bash
+    cd examples/s1/cmd
+    sh train.sh
+    ```
+    
+    This script automatically:
+    
+    * Computes normalization statistics (norm_stats)
+    * Trains the model according to your configuration
+
+🔹 Option B (Optional): Execute Each Step Manually
+    
+1. Compute Normalization Statistics
+    
+    ```bash
+    uv run scripts/compute_norm_stats_from_tasks.py \
+      --config-name wrc_pnp_test
+    ```
+2. Train the Model
+    
+    ```bash
+    uv run scripts/train_auto.py \
+      wrc_pnp_test --exp-name=test --resume
+    ```
+### 4️⃣ Test the Trained Model
+
+After training, you can test your policy in simulation or on the robot. The testing workflow has **two main steps**:
+
+🔹 Step 1: Start Policy Server
+
+Launch the model server using the trained checkpoint:
+
+```bash
+uv run scripts/serve_policy.py \
+  --env ALOHA_SIM \
+  policy:checkpoint \
+  --policy.config=wrc_pnp_test \
+  --policy.dir="/path/to/your/checkpoints/pi0_test/159999" # replace with your path
+```
+
+🔹 Step 2: Run Inference and Save Results
+
+Once the server is running, execute inference and save the results:
+```bash 
+uv run show_result_auto.py
+```
+Ensure the policy server is running before executing inference.
+Inference results will be automatically saved in the eval/result folder.
+
+---
+
 # openpi
 
 openpi holds open-source models and packages for robotics, published by the [Physical Intelligence team](https://www.physicalintelligence.company/).
@@ -192,14 +322,3 @@ We will collect common issues and their solutions here. If you encounter an issu
 | CUDA/GPU errors                           | Verify NVIDIA drivers and CUDA toolkit are installed correctly. For Docker, ensure nvidia-container-toolkit is installed. Check GPU compatibility.                                           |
 | Import errors when running examples       | Make sure you've installed all dependencies with `uv sync` and activated the virtual environment. Some examples may have additional requirements listed in their READMEs.                    |
 | Action dimensions mismatch                | Verify your data processing transforms match the expected input/output dimensions of your robot. Check the action space definitions in your policy classes.                                  |
-
-
-
-
-
-# astribot 版本
-## 1. hdf5转lerobot
-uv run examples/astribot/s1_hd5_2_lerobot.py --raw-path "/kpfs-regular/gg/gg/data/s1_pnp/WRC/gripper_pnp/to_Cart/731_left_1toy/so3_data_30hz" --image-compressed True --use_label False
-
-## 2. 计算norm_state
-uv run scripts/compute_norm_stats.py --config-name pi0_astribot_test

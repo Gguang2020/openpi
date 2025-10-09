@@ -289,7 +289,7 @@ class CustomLeRobotDataset(LeRobotDataset):
         if run_compute_stats:
             self.stop_image_writer()
             # TODO(aliberts): refactor stats in save_episodes
-            self.meta.stats = compute_stats(self, num_workers=0,max_num_samples=1000)
+            self.meta.stats = compute_stats(self, num_workers=0,max_num_samples=100)
             serialized_stats = serialize_dict(self.meta.stats)
             write_json(serialized_stats, self.root / STATS_PATH)
             self.consolidated = True
@@ -984,7 +984,7 @@ class DatasetConverter:
             private=private,
         )
 
-    def init_lerobot_dataset(self):
+    def init_lerobot_dataset(self,auto_input = None):
         """
         Initializes the LeRobot dataset.
         This method cleans the cache if the dataset already exists and then creates a new LeRobot dataset.
@@ -998,7 +998,12 @@ class DatasetConverter:
 
         # Clean the cache if the dataset already exists
         if os.path.exists(self.root_path / self.dataset_repo_id):
-            user_input = input("删除(y)  ,计算stats mean std (s), 其他退出：" + str(self.root_path / self.dataset_repo_id))  # 等待用户输入
+            if auto_input is not None:
+                user_input = auto_input
+                print(f"auto_input {user_input}")
+            else:
+                user_input = input("删除(y)  ,计算stats mean std (s), 其他退出：" + str(self.root_path / self.dataset_repo_id))  # 等待用户输入
+
             if user_input == "y":
                 shutil.rmtree(self.root_path / self.dataset_repo_id)
             else:
@@ -1102,7 +1107,7 @@ def main():
     parser.add_argument("--nproc", type=int, default=10, help="Number of image writer processes.")
     parser.add_argument("--nthreads", type=int, default=5, help="Number of image writer threads.")
     parser.add_argument("--use_label", type=str2bool, default=False, help="use label in the dataset")
-
+    parser.add_argument("--auto_input", type=str, default=None, help="auto input y、s or n")
 
     args = parser.parse_args()
     print(
@@ -1135,7 +1140,7 @@ def main():
         image_writer_threads=args.nthreads,
         use_label=args.use_label
     )
-    converter.init_lerobot_dataset()
+    converter.init_lerobot_dataset(args.auto_input)
     converter.extract_episodes(episode_description=args.description)
 
     if args.push:
