@@ -6,7 +6,7 @@
                 "807_wrc_night/lerobot_so3_data_30hz"
   ],
   "num_train_steps": 160000,
-  "num_workers": 4,
+  "num_workers": 1,
   "batch_size": 1
 
 }

@@ -158,6 +158,7 @@ class ModelTransformFactory(GroupFactory):
 @dataclasses.dataclass(frozen=True)
 class DataConfigFactory(abc.ABC):
     # The LeRobot repo id.
+    test_name: str | None = None
     repo_id: str = tyro.MISSING
     repo_id_list: list = dataclasses.field(default_factory=list)
 
@@ -191,6 +192,8 @@ class DataConfigFactory(abc.ABC):
             return None
         try:
             data_assets_dir = str(assets_dir / asset_id)
+            if self.test_name is not None:
+                data_assets_dir = data_assets_dir+"/" +self.test_name
             norm_stats = _normalize.load(_download.maybe_download(data_assets_dir))
             logging.info(f"Loaded norm stats from {data_assets_dir}")
             return norm_stats
@@ -227,6 +230,7 @@ class SimpleDataConfig(DataConfigFactory):
 
 @dataclasses.dataclass(frozen=True)
 class LeRobotAstribotDataConfig(DataConfigFactory):
+    test_name: str | None = None
     # If true, will convert joint dimensions to deltas with respect to the current state before passing to the model.
     # Gripper dimensions will remain in absolute values.
     use_delta_so3_actions: bool = True
@@ -908,6 +912,8 @@ def get_config(config_name: str) -> TrainConfig:
         name=config_name+"_list",
         model=pi0.Pi0Config(),
         data=LeRobotAstribotDataConfig(
+
+            test_name= config_name,
 
             assets=AssetsConfig(assets_dir=astribot_train_config["DatasetRootPath"] ,
                                 asset_id=astribot_train_config["base_dir"]),

@@ -13,7 +13,7 @@ cd ../../../
 
 
 # 定义任务名,与configs目录下的json文件名对应
-task_name="wrc_pnp"
+task_name="wrc_pnp_test"
 
 # 定义实验名,与存储模型的目录对应
 exp_name="all_data"

@@ -78,7 +78,7 @@ You have two options (mutually exclusive, OR):
     Run the entire workflow (compute normalization statistics and train the model) using the script:
     
     ```bash
-    cd examples/s1/cmd
+    cd examples/astribot/cmd
     sh train.sh
     ```
     
