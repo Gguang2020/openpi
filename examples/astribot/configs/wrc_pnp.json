@@ -1,5 +1,5 @@
 {
-  "DatasetRootPath": "/kpfs-regular/gg/data/s1_pnp/",
+  "DatasetRootPath": "/kpfs-regular/data/s1_pnp/",
   "base_dir": "WRC/gripper_pnp/to_Cart",
   "repo_id_list": [
                 "731_left_1toy/lerobot_so3_data_30hz",

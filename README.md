@@ -69,8 +69,8 @@ You have two options (mutually exclusive, OR):
 
     Add your YAML/JSON configuration file under `examples/astribot/configs/`.  
 
-    - Naming convention: `<task_name>.json`, e.g., `wrc_pnp_test.json`  
-    - Refer to the example configuration for structure and parameters: `examples/s1/configs/wrc_pnp_test.json`
+    - Naming convention: `<task_name>.json`, e.g., `wrc_pnp.json`  
+    - Refer to the example configuration for structure and parameters: `examples/s1/configs/wrc_pnp.json`
 
 
  2. Run Automated Pipeline
@@ -84,7 +84,7 @@ You have two options (mutually exclusive, OR):
     
     This script automatically:
     
-    * Computes normalization statistics (norm_stats)
+    * Computes normalization statistics (norm_stats)  — at this stage, a norm_stats.json file will be generated under the path DatasetRootPath + base_dir + task_name.
     * Trains the model according to your configuration
 
 🔹 Option B (Optional): Execute Each Step Manually
