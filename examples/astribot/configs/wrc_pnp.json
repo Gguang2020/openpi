@@ -2,8 +2,8 @@
   "DatasetRootPath": "/kpfs-regular/data/s1_pnp/",
   "base_dir": "WRC/gripper_pnp/to_Cart",
   "repo_id_list": [
-                "731_left_1toy/lerobot_so3_data_30hz",
-                "807_wrc_night/lerobot_so3_data_30hz"
+                "731_left_1toy/lerobot_astribot",
+                "807_wrc_night/lerobot_astribot"
   ],
   "num_train_steps": 160000,
   "num_workers": 1,
