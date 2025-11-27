@@ -23,9 +23,9 @@ from glob import glob
 @dataclasses.dataclass
 class Args:
     out_path: pathlib.Path = pathlib.Path("out.mp4")
-    dataset_root_path: str = "/media/xc/guang4T/astribot_dataset/s1_pnp/WRC/gripper_pnp/to_Cart/731_left_1toy/"
+    dataset_root_path: str = "/home/astribot-2gpu/openpi_test/openpi/pi0_open/"
     dataset_repo_id: str = "lerobot_so3_data_30hz"
-    config: str = "wrc_pnp_test"
+    config: str = "popcorn"
 
     data_episode_id: int = 0
     frame_step: int = 10
@@ -36,18 +36,21 @@ class Args:
 
 def main(args: Args) -> None:
 
-    config = _config.get_config(args.config)
-    data_config = config.data.create(config.assets_dirs, config.model)
+    # config = _config.get_config(args.config)
+    # data_config = config.data.create(config.assets_dirs, config.model)
 
 
-    structure = data_config.repack_transforms.inputs[0].structure
-    image_names = structure["images"]
-    state_names = structure["state"]
-    action_names = structure["actions"]
+    # structure = data_config.repack_transforms.inputs[0].structure
+    image_names = { "cam_high": "images_dict.head.rgb",
+                                    "cam_left_wrist": "images_dict.left.rgb",
+                                    "cam_right_wrist": "images_dict.right.rgb",
+                                    }
+    state_names = "cartesian_so3_dict.cartesian_pose_state"
+    action_names = "cartesian_so3_dict.cartesian_pose_command"
     episode_id = args.data_episode_id
     dataset = LeRobotDataset(root=Args.dataset_root_path + Args.dataset_repo_id,
                              repo_id=Args.dataset_repo_id,
-                             episodes=[episode_id],
+                             episodes=[episode_id],local_files_only=True
     )
 
     policy=_websocket_client_policy.WebsocketClientPolicy(
@@ -87,10 +90,6 @@ def main(args: Args) -> None:
 
         obs_dict["prompt"] = "S1 pick the obj and place it into the box."
         obs_dict["actions"] = [data[action_names].numpy()]
-        if "head_so3_poses" in structure:
-            head_so3_poses = data[structure["head_so3_poses"][0]].numpy()
-            obs_dict["head_so3_poses"] = head_so3_poses
-            pass
         time_1 = time.time()
         action_list = policy.infer(obs_dict)['actions']
         print("infer time:", time.time()-time_1)

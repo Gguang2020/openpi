@@ -121,6 +121,7 @@ uv run scripts/serve_policy.py \
 
 Once the server is running, execute inference and save the results:
 ```bash 
+cd examples/astribot/eval
 uv run show_result_auto.py
 ```
 Ensure the policy server is running before executing inference.

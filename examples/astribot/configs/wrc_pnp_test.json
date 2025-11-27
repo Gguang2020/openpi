@@ -1,0 +1,11 @@
+{
+  "DatasetRootPath": "/media/xc/guang4T/astribot_dataset/s1_pnp/",
+  "base_dir": "WRC/gripper_pnp/to_Cart",
+  "repo_id_list": [
+                "804_gg_right_adj/lerobot_so3_data_30hz__/"
+  ],
+  "num_train_steps": 160000,
+  "num_workers": 1,
+  "batch_size": 1
+
+}

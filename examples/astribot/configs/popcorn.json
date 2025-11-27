@@ -1,0 +1,33 @@
+{
+  "DatasetRootPath": "/kpfs-regular/autodeploy_dataset/",
+  "base_dir": "popcorn/Add_err_shovel_popcorn",
+  "repo_id_list": [
+                "101500_001/lerobot_so3_data_30hz",
+                "101616_001/lerobot_so3_data_30hz",
+                "10170136_002/lerobot_so3_data_30hz",
+                "10170647_001/lerobot_so3_data_30hz",
+                "10170647_002/lerobot_so3_data_30hz",
+                "10171139_001/lerobot_so3_data_30hz",
+                "10171139_001/lerobot_so3_data_30hz",
+                "10181504_001/lerobot_so3_data_30hz",
+                "10181424_001/lerobot_so3_data_30hz",
+                "10181504_001/lerobot_so3_data_30hz",
+                "10181600_001/lerobot_so3_data_30hz",
+                "10182344_001/lerobot_so3_data_30hz",
+                "10182344_002/lerobot_so3_data_30hz",
+                "10201135_001/lerobot_so3_data_30hz",
+                "10171139_001/lerobot_so3_data_30hz",
+                "10201135_002/lerobot_so3_data_30hz",
+                "10201135_003/lerobot_so3_data_30hz",
+                "10201135_004/lerobot_so3_data_30hz",
+                "10221900_001/lerobot_so3_data_30hz",
+                "10221900_001_1/lerobot_so3_data_30hz",
+                "10272117_001/lerobot_so3_data_30hz",
+                "10272117_002/lerobot_so3_data_30hz",
+                "10272117_003/lerobot_so3_data_30hz",
+                "101511_005/lerobot_so3_data_30hz"
+  ],
+  "num_train_steps": 100000,
+  "num_workers": 16,
+  "batch_size": 16
+}
