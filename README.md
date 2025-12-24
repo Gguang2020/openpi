@@ -120,12 +120,21 @@ uv run scripts/serve_policy.py \
 🔹 Step 2: Run Inference and Save Results
 
 Once the server is running, execute inference and save the results:
-```bash 
+```bash
 cd examples/astribot/eval
 uv run show_result_auto.py
 ```
 Ensure the policy server is running before executing inference.
 Inference results will be automatically saved in the eval/result folder.
+
+🔹 Step 3: Run Real Robot Evaluation (Optional)
+
+For real robot evaluation, run the following command in AstriBot control environment:
+```bash
+cd examples/astribot/eval
+python astribot_eval_sdk_auto.py
+```
+**Note:** This requires AstriBot SDK and ROS environment. Ensure the policy server is running before execution.
 
 ---
 

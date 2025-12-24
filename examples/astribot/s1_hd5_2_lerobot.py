@@ -1,59 +1,46 @@
 # ruff: noqa
-"""
+"""Convert AstriBot S1 HDF5 datasets to LeRobot format.
+
 Script courtesy of Raziel90 https://github.com/huggingface/lerobot/pull/586/files
 
-Example usage
-python scripts/aloha_hd5.py --raw-path ~/data/ --dataset-repo-id <hf-username>/<dataset-name> --robot-type <aloha-stationary|aloha-mobile> --fps 50 --video-encoding=false --push=false
+Example usage:
+    python s1_hd5_2_lerobot.py \\
+        --raw-path ~/data/ \\
+        --dataset-repo-id <hf-username>/<dataset-name> \\
+        --robot-type S1-stationary \\
+        --fps 30 \\
+        --video-encoding=false \\
+        --push=false
 
-The data will be saved locally the value of the LEROBOT_HOME environment variable. By default this is set to ~/.cache/huggingface/lerobot
-If you wish to submit the dataset to the hub, you can do so by setting up the hf cli https://huggingface.co/docs/huggingface_hub/en/guides/cli and setting --push=true
+The data will be saved locally to the value of the LEROBOT_HOME environment variable.
+By default this is set to ~/.cache/huggingface/lerobot.
+If you wish to submit the dataset to the hub, you can do so by setting up the hf cli
+https://huggingface.co/docs/huggingface_hub/en/guides/cli and setting --push=true
 """
 
 import argparse
+import json
 import logging
 import os
-from pathlib import Path
 import shutil
+import subprocess
 import traceback
-import numpy as np
-import json
+from collections import OrderedDict
+from pathlib import Path
+
 import cv2
 import h5py
+import numpy as np
+import torch
+from lerobot.common.datasets.compute_stats import compute_stats
 from lerobot.common.datasets.lerobot_dataset import LeRobotDataset
-from lerobot.common.datasets.compute_stats import aggregate_stats, compute_stats
-
-
-from collections import OrderedDict
-import subprocess
 from lerobot.common.datasets.utils import (
-    DEFAULT_FEATURES,
-    DEFAULT_IMAGE_PATH,
-    EPISODES_PATH,
-    INFO_PATH,
     STATS_PATH,
-    TASKS_PATH,
-    append_jsonlines,
-    check_delta_timestamps,
     check_timestamps_sync,
-    check_version_compatibility,
-    create_branch,
-    create_empty_dataset_info,
-    create_lerobot_dataset_card,
-    get_delta_indices,
     get_episode_data_index,
-    get_features_from_robot,
-    get_hf_features_from_features,
-    get_hub_safe_version,
-    hf_transform_to_torch,
-    load_episodes,
-    load_info,
-    load_stats,
-    load_tasks,
     serialize_dict,
     write_json,
-    write_parquet,
 )
-import torch
 
 
 def encode_video_frames_from_img(
@@ -112,23 +99,33 @@ def encode_video_frames_from_img(
         )
 
 class CustomLeRobotDataset(LeRobotDataset):
+    """Custom LeRobot dataset with extended functionality for S1 robot data."""
+
     def __init__(
         self,
         repo_id: str,
         root: str | Path | None = None,
-        **kwargs,  # 保持可扩展性
+        **kwargs,
     ):
-        super().__init__(repo_id, root, **kwargs)  # 调用父类的初始化
-        # print(f"CustomLeRobotDataset initialized with new_param: {self.input_video_flag}")
+        """Initialize custom LeRobot dataset.
+
+        Args:
+            repo_id: Repository identifier.
+            root: Root directory for dataset storage.
+            **kwargs: Additional arguments passed to parent class.
+        """
+        super().__init__(repo_id, root, **kwargs)
 
     def add_frame(self, frame: dict) -> None:
+        """Add a frame to the episode buffer.
+
+        This function only adds the frame to the episode_buffer. Apart from images
+        which are written to a temporary directory, nothing is written to disk.
+        To save those frames, the save_episode() method needs to be called.
+
+        Args:
+            frame: Dictionary containing frame data including images and states.
         """
-        This function only adds the frame to the episode_buffer. Apart from images — which are written in a
-        temporary directory — nothing is written to disk. To save those frames, the 'save_episode()' method
-        then needs to be called.
-        """
-        # TODO(aliberts, rcadene): Add sanity check for the input, check it's numpy or torch,
-        # check the dtype and shape matches, etc.
 
         if self.episode_buffer is None:
             self.episode_buffer = self.create_episode_buffer()
@@ -299,24 +296,35 @@ class CustomLeRobotDataset(LeRobotDataset):
             )
             
 class S1Transformer:
+    """Transformer for S1 robot coordinate and pose conversions."""
 
-    joints_names = ["astribot_chassis", "astribot_torso", "astribot_arm_left", "astribot_gripper_left", "astribot_arm_right", "astribot_gripper_right", "astribot_head"]
+    joints_names = ["astribot_chassis", "astribot_torso", "astribot_arm_left",
+                    "astribot_gripper_left", "astribot_arm_right", "astribot_gripper_right", "astribot_head"]
     joints_dim = [3, 4, 7, 1, 7, 1, 2]
     joints_name_dim_dict = dict(zip(joints_names, joints_dim))
 
-    def get_joint_data_form_name(self,joint_data, name):
+    def get_joint_data_form_name(self, joint_data, name):
+        """Get joint data by joint name.
+
+        Args:
+            joint_data: Array containing all joint positions.
+            name: Name of the joint to extract.
+
+        Returns:
+            Joint data array, or None if name not found.
+        """
         if name not in self.joints_name_dim_dict:
-            return None  # 名称不存在，返回 None
+            return None
 
-        index = self.joints_names.index(name)  # 找到关节索引
-        start = sum(self.joints_dim[:index])  # 计算起始索引
-        end = start + self.joints_dim[index]  # 计算结束索引
+        index = self.joints_names.index(name)
+        start = sum(self.joints_dim[:index])
+        end = start + self.joints_dim[index]
 
-        data = joint_data[start:end]  # 获取对应的 joint 数据
+        data = joint_data[start:end]
         if np.isnan(data[0]):
-            data = np.zeros(self.joints_dim[index])  # 如果数据为 NaN，则返回全零数组
+            data = np.zeros(self.joints_dim[index])
 
-        return data  # 返回对应的 joint 数据
+        return data
 
     def quaternion_to_rotation_matrix(self, q):
         """
@@ -340,12 +348,19 @@ class S1Transformer:
                 [2 * (xz - yw), 2 * (yz + xw), w2 - x2 - y2 + z2],
             ]
         )
-    def xyz_quat_to_so3(self,xyz_quat):
-        x, y, z, qx, qy, qz, qw = xyz_quat
+    def xyz_quat_to_so3(self, xyz_quat):
+        """Convert XYZ quaternion to SO3 representation.
+
+        Args:
+            xyz_quat: Array of [x, y, z, qx, qy, qz, qw].
+
+        Returns:
+            Array of [x, y, z] + first two rows of rotation matrix flattened.
+        """
+        qx, qy, qz, qw = xyz_quat[3:7]
         R = self.quaternion_to_rotation_matrix([qx, qy, qz, qw])
 
-
-        return np.hstack([xyz_quat[:3], R[:2].flatten()])  # 返回 [x, y, z, R(3x3) 展平为 9 个数]
+        return np.hstack([xyz_quat[:3], R[:2].flatten()])
 
 
 class S1HD5Extractor:
