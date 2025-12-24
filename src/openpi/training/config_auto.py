@@ -914,7 +914,6 @@ def get_config(config_name: str) -> TrainConfig:
             local_files_only=True,
 
         ),
-        # policy_metadata={"reset_pose": [0, -1.5, 1.5, 0, 0, 0]},
 
         num_workers=astribot_train_config["num_workers"],
         num_train_steps=astribot_train_config["num_train_steps"],

@@ -263,72 +263,87 @@ class AbsoluteActions(DataTransformFn):
 
 @dataclasses.dataclass(frozen=True)
 class DeltaActions_so3(DataTransformFn):
-    """Repacks absolute actions into delta action space."""
+    """Repacks absolute actions into delta action space with SO(3) rotation handling.
 
-    # Boolean mask for the action dimensions to be repacked into delta action space. Length
-    # can be smaller than the actual number of dimensions. If None, this transform is a no-op.
-    # See `make_bool_mask` for more details.
+    This transform converts absolute pose actions (xyz + SO(3) rotation) into delta actions
+    relative to the current state. The mask parameter identifies which dimensions should be
+    treated as 9D pose blocks (3D translation + 6D SO(3) rotation).
+    """
+
+    # Integer mask for the action dimensions. Each value indicates the dimension size of an action block.
+    # A value of 9 indicates a pose block (3D xyz + 6D SO(3)). If None, this transform is a no-op.
     mask: Sequence[int] | None
 
-    def xyz_so3_p1_to_p3(self,P1,P3 = None):
+    def _compute_change_xyz_so3(
+        self,
+        p1: np.ndarray,
+        p2: np.ndarray,
+        p4: np.ndarray | None = None
+    ) -> np.ndarray:
+        """Compute delta transformation from pose p1 to pose p2.
 
-        R1 = so3_to_matrix(P1[3:]).reshape(3, 3)
-        T_1 = np.array(P1[:3])
-        if P3 is not None:
-            P3 = np.squeeze(P3)
+        Args:
+            p1: Starting pose [x, y, z, so3(6)].
+            p2: Target pose [x, y, z, so3(6)].
+            p4: Optional coordinate frame transformation matrix.
 
-        return np.concatenate([T_1 , matrix_to_so3(R1)])
+        Returns:
+            Delta pose [dx, dy, dz, delta_so3(6)] in p1's local frame.
+        """
+        R1 = so3_to_matrix(p1[3:]).reshape(3, 3)
+        R2 = so3_to_matrix(p2[3:]).reshape(3, 3)
 
-    def compute_change_xyz_so3(self,P1, P2,P3 =None,P4=None):
+        T_1 = np.array(p1[:3])
+        T_2 = np.array(p2[:3])
 
-        R1 = so3_to_matrix(P1[3:]).reshape(3, 3)
-        R2 = so3_to_matrix(P2[3:]).reshape(3, 3)
-
-        T_1 = np.array(P1[:3])
-        T_2 = np.array(P2[:3])
-
-        # 计算旋转矩
+        # Compute rotation and translation deltas in p1's local frame
         R_d = R1.T @ R2
         T_d = R1.T @ (T_2 - T_1)
-        if P4 is not None:
-            R_d = P4[:3, :3].T @ R_d @ P4[:3, :3]
-            T_d = P4[:3, :3].T @ T_d
 
+        if p4 is not None:
+            R_d = p4[:3, :3].T @ R_d @ p4[:3, :3]
+            T_d = p4[:3, :3].T @ T_d
 
-        return np.concatenate([T_d , matrix_to_so3(R_d)])
+        return np.concatenate([T_d, matrix_to_so3(R_d)])
 
-    def compute_change_xyz_so3_list(self, P1, P2, P3=None,P4=None):
+    def _compute_change_xyz_so3_list(
+        self,
+        p1: np.ndarray,
+        p2: np.ndarray,
+        p4: np.ndarray | None = None
+    ) -> np.ndarray:
+        """Compute delta transformations for a sequence of target poses.
+
+        Args:
+            p1: Starting pose [x, y, z, so3(6)].
+            p2: Array of target poses with shape [..., 9].
+            p4: Optional coordinate frame transformation matrix.
+
+        Returns:
+            Array of delta poses with the same shape as p2.
+        """
         so3_delta_list = []
-        for P2_now in P2:
-            so3_delta_list += [self.compute_change_xyz_so3(P1, P2_now,P3,P4)]
-        so3_delta = np.array(so3_delta_list)
-        return so3_delta
+        for p2_now in p2:
+            so3_delta_list.append(self._compute_change_xyz_so3(p1, p2_now, p4))
+        return np.array(so3_delta_list)
 
     def __call__(self, data: DataDict) -> DataDict:
         if "actions" not in data or self.mask is None:
-            # if self.state_trans_head:
-            #     state = data["state"]
-            #     last_idx = 0
-            #     head_poses = data["head_so3_poses"]
-            #     for idx,num in enumerate(self.mask):
-            #         cur_idx = last_idx + abs(num)
-            #         if num == 9:
-            #             state[...,last_idx:cur_idx] = self.xyz_so3_p1_to_p3(state[...,last_idx:cur_idx],head_poses)
-            #         last_idx = cur_idx
-            #     data["state"] = state
             return data
 
         state, actions = data["state"], data["actions"]
         last_idx = 0
 
-        num_9 = 0
-        for idx,num in enumerate(self.mask):
-            cur_idx = last_idx + abs(num)
-            if num == 9:
-                num_9 += 1
-                actions[...,last_idx:cur_idx] = self.compute_change_xyz_so3_list(state[...,last_idx:cur_idx], actions[...,last_idx:cur_idx])
-
+        for idx, dim_size in enumerate(self.mask):
+            cur_idx = last_idx + abs(dim_size)
+            if dim_size == 9:
+                # Convert absolute pose actions to delta actions
+                actions[..., last_idx:cur_idx] = self._compute_change_xyz_so3_list(
+                    state[..., last_idx:cur_idx],
+                    actions[..., last_idx:cur_idx]
+                )
             last_idx = cur_idx
+
         data["actions"] = actions
         data["state"] = state
 
@@ -337,67 +352,93 @@ class DeltaActions_so3(DataTransformFn):
 
 @dataclasses.dataclass(frozen=True)
 class AbsoluteActions_so3(DataTransformFn):
-    """Repacks delta actions into absolute action space."""
+    """Repacks delta actions into absolute action space with SO(3) rotation handling.
 
-    # Boolean mask for the action dimensions to be repacked into absolute action space. Length
-    # can be smaller than the actual number of dimensions. If None, this transform is a no-op.
-    # See `make_bool_mask` for more details.
+    This transform converts delta pose actions (relative transformations) into absolute poses
+    by applying them to the current state. The mask parameter identifies which dimensions should be
+    treated as 9D pose blocks (3D translation + 6D SO(3) rotation).
+    """
+
+    # Integer mask for the action dimensions. Each value indicates the dimension size of an action block.
+    # A value of 9 indicates a pose block (3D xyz + 6D SO(3)). If None, this transform is a no-op.
     mask: Sequence[int] | None
 
-    def xyz_so3_p1_to_p3_T(self,P1,P3 = None):
+    def _compute_add_xyz_so3(
+        self,
+        p1: np.ndarray,
+        pd: np.ndarray,
+        p4: np.ndarray | None = None
+    ) -> np.ndarray:
+        """Apply delta transformation to a base pose to get the target pose.
 
-        R1 = so3_to_matrix(P1[3:]).reshape(3, 3)
-        T_1 = np.array(P1[:3])
-        if P3 is not None:
-            P3 = np.squeeze(P3)
+        Args:
+            p1: Base pose [x, y, z, so3(6)].
+            pd: Delta pose [dx, dy, dz, delta_so3(6)] in p1's local frame.
+            p4: Optional coordinate frame transformation matrix.
 
-        return np.concatenate([T_1 , matrix_to_so3(R1)])
-    def compute_add_xyz_so3(self, P1, Pd,P3=None,P4=None):
+        Returns:
+            Target pose [x, y, z, so3(6)] after applying the delta.
+        """
+        R1 = so3_to_matrix(p1[3:]).reshape(3, 3)
+        R_d = so3_to_matrix(pd[3:]).reshape(3, 3)
 
-        R1 = so3_to_matrix(P1[3:]).reshape(3, 3)
-        R_d = so3_to_matrix(Pd[3:]).reshape(3, 3)
+        T_1 = np.array(p1[:3])
+        T_d = np.array(pd[:3])
 
-        T_1 = np.array(P1[:3])
-        T_d = np.array(Pd[:3])
+        # Apply coordinate frame transformation if provided
+        if p4 is not None:
+            R_d = R_d @ p4[:3, :3].T
+            R1 = R1 @ p4[:3, :3]
 
-        # 计算旋转矩
-        if P4 is not None:
-            R_d =  R_d @ P4[:3, :3].T
-            R1 = R1 @ P4[:3, :3]
-
+        # Compute target rotation and translation in global frame
         R2 = R1 @ R_d
-        T_2 = R1 @T_d + T_1
-
+        T_2 = R1 @ T_d + T_1
 
         return np.concatenate([T_2, matrix_to_so3(R2)])
 
-    def compute_add_xyz_so3_list(self, P1, Pd,P3=None,P4=None):
-        P2_list = []
-        for Pd_now in Pd:
-            P2_list += [self.compute_add_xyz_so3(P1, Pd_now,P3,P4)]
-        P2 = np.array(P2_list)
-        return P2
+    def _compute_add_xyz_so3_list(
+        self,
+        p1: np.ndarray,
+        pd: np.ndarray,
+        p4: np.ndarray | None = None
+    ) -> np.ndarray:
+        """Apply delta transformations to a base pose for a sequence of deltas.
+
+        Args:
+            p1: Base pose [x, y, z, so3(6)].
+            pd: Array of delta poses with shape [..., 9].
+            p4: Optional coordinate frame transformation matrix.
+
+        Returns:
+            Array of target poses with the same shape as pd.
+        """
+        p2_list = []
+        for pd_now in pd:
+            p2_list.append(self._compute_add_xyz_so3(p1, pd_now, p4))
+        return np.array(p2_list)
 
     def __call__(self, data: DataDict) -> DataDict:
         if "actions" not in data or self.mask is None:
             return data
 
         state, actions = data["state"], data["actions"]
-
-
         last_idx = 0
 
-        num_9 = 0
-        for idx,num in enumerate(self.mask):
-            cur_idx = last_idx + abs(num)
-            if num == 9:
-                num_9 += 1
-                actions[...,last_idx:cur_idx] = self.compute_add_xyz_so3_list(state[...,last_idx:cur_idx], actions[...,last_idx:cur_idx])
-
+        for idx, dim_size in enumerate(self.mask):
+            cur_idx = last_idx + abs(dim_size)
+            if dim_size == 9:
+                # Convert delta pose actions to absolute pose actions
+                actions[..., last_idx:cur_idx] = self._compute_add_xyz_so3_list(
+                    state[..., last_idx:cur_idx],
+                    actions[..., last_idx:cur_idx]
+                )
             last_idx = cur_idx
+
         data["actions"] = actions
 
         return data
+
+
 @dataclasses.dataclass(frozen=True)
 class TokenizePrompt(DataTransformFn):
     tokenizer: _tokenizer.PaligemmaTokenizer
